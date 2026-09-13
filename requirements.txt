@@ -1,0 +1,12 @@
+# Core EDA stack
+numpy>=1.26
+pandas>=2.2
+matplotlib>=3.8
+seaborn>=0.13
+pillow>=10.0
+scikit-learn>=1.4
+
+# Notebooks
+jupyter>=1.0
+ipykernel>=6.29
+tqdm>=4.66
