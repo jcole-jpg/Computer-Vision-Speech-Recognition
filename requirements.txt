@@ -10,3 +10,8 @@ scikit-learn>=1.4
 jupyter>=1.0
 ipykernel>=6.29
 tqdm>=4.66
+
+# Notebook execution (headless)
+nbformat>=5.10
+nbclient>=0.10
+nbconvert>=7.16

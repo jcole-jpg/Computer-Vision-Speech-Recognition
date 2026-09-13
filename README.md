@@ -30,9 +30,9 @@ truth as an imaging dataset gets.
 
 Why this is hard, and what the EDA needs to surface:
 
-- **Severe class imbalance** — benign nevi dominate; some malignant categories
-  are rare. Accuracy alone is meaningless; we care about sensitivity on the
-  malignant classes.
+- **Severe class imbalance** — basal cell carcinoma alone is 48 % of lesions and
+  five classes have fewer than 55 examples. Accuracy alone is meaningless; we
+  care about per-class sensitivity, especially on the rare malignant classes.
 - **Two modalities per lesion** — the clinical and dermatoscopic images carry
   complementary information and need to be handled as a pair, not as two
   independent samples.
@@ -101,18 +101,35 @@ Images join to lesions via `lesion_id` (2 images per lesion, `image_type` ∈
 
 ## 3. Milestone 1 — Exploratory Data Analysis
 
-Scope of the EDA delivered in this repo:
+Notebook: [`notebooks/01_eda_milk10k.ipynb`](notebooks/01_eda_milk10k.ipynb)
+(executed, outputs included) · figures in [`reports/figures/`](reports/figures/)
+· loaders in [`src/milk10k.py`](src/milk10k.py)
 
-- [ ] **Images** — count, resolution/aspect-ratio distribution, file sizes,
-      colour statistics, sample grids per class for both modalities
-- [ ] **Metadata** — completeness/missingness, age, sex, anatomic site,
-      skin-tone distribution, ground-truth method, per-site breakdown
-- [ ] **Class distribution** — 11-class and 48-class counts, malignant vs
-      benign ratio, imbalance ratios, cross-tabs (class × site, class × skin tone)
-- [ ] **Visualisations** — bar charts, histograms, sample image mosaics,
-      paired clinical/dermatoscopic examples, correlation/cross-tab heatmaps
-- [ ] **Findings** — short written summary of what the EDA implies for
-      modelling (sampling strategy, augmentation, evaluation metrics)
+- [x] **Images** — count, resolution/aspect-ratio distribution, file sizes,
+      colour statistics per modality, one paired example per class, mosaic
+- [x] **Metadata** — completeness/missingness, age, sex, anatomic site,
+      skin tone, ground-truth method, image manipulation
+- [x] **Class distribution** — 11-class and 48-class counts, malignant vs
+      benign ratio, imbalance ratios, diagnosis hierarchy
+- [x] **Cross-tabs** — class × skin tone, class × site, class × sex,
+      age by class, class × ground-truth method, MONET feature scores
+- [x] **Findings** — what the EDA implies for modelling
+
+### Key findings
+
+| Finding | Implication |
+|---|---|
+| 5,240 lesions × exactly 2 images (1 clinical + 1 dermatoscopic) | Split **by lesion**, never by image; model the pair jointly |
+| **72 % of lesions are malignant; BCC alone is 48 %**, NV only 14 % — a biopsy-enriched cohort, not a screening population | Prevalence-dependent metrics won't transfer; report macro-F1 / balanced accuracy / per-class sensitivity |
+| Tail classes: MAL_OTH 9, BEN_OTH 44, VASC 47, INF 50, DF 52 lesions | Stratified splits, class weighting or re-sampling; consider an "other" bucket first |
+| 48 fine diagnoses, most with < 10 lesions | Train at the 11-class level; use fine labels for stratification / error analysis |
+| Median age 65, 60 % male, 61 % skin-tone 3, < 1 % tones 0–1 | Report metrics per tone and age band; darker skin generalisation is unproven |
+| Age, site **and skin tone** vary systematically by class (keratinocyte cancers ≈ tone 3–4, older, head/neck) | Legitimate priors but potential shortcuts — audit model reliance |
+| Benign classes hold the non-biopsied (clinically assessed) lesions | Benign labels are slightly noisier |
+| Mixed resolutions/aspect ratios; dermatoscopy brighter and more saturated; gel/hair/ink artefacts | Aspect-preserving resize, per-modality normalisation, dermoscopy-specific augmentation |
+
+Reproduce: `jupyter nbconvert --to notebook --execute notebooks/01_eda_milk10k.ipynb`
+(≈ 10 s after the data is extracted).
 
 ## 4. Project structure
 
@@ -128,11 +145,14 @@ Computer-Vision-Speech-Recognition/
 │   │       ├── metadata.csv
 │   │       └── supplements/ ← training_input / training_gt / training_supp .csv
 │   └── processed/           ← derived tables / cached stats (git-ignored)
-├── notebooks/               ← EDA and experiment notebooks
-├── src/                     ← reusable Python code (loaders, plotting helpers)
+├── notebooks/
+│   └── 01_eda_milk10k.ipynb ← Milestone 1 EDA (executed)
+├── src/
+│   └── milk10k.py           ← loaders, class map, merged image/lesion tables
 ├── reports/
-│   └── figures/             ← exported plots used in reports
-└── docs/                    ← deliverables (PDF report, screenshots)
+│   └── figures/             ← 12 exported EDA figures (PNG)
+└── docs/
+    └── milestone1_deliverable.pdf ← repo link + editor screenshot
 ```
 
 ## 5. Setup
@@ -158,8 +178,8 @@ jupyter lab notebooks/
 | Deliverable | Where |
 |---|---|
 | Public GitHub repository with the EDA code | https://github.com/jcole-jpg/Computer-Vision-Speech-Recognition |
-| EDA notebook(s) | `notebooks/` |
-| PDF with repo link + editor screenshot of the project structure | `docs/` |
+| EDA notebook | [`notebooks/01_eda_milk10k.ipynb`](notebooks/01_eda_milk10k.ipynb) |
+| PDF with repo link + editor screenshot of the project structure | [`docs/milestone1_deliverable.pdf`](docs/milestone1_deliverable.pdf) |
 
 ## 7. References
 
