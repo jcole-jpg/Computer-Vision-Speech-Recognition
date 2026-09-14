@@ -146,13 +146,16 @@ Computer-Vision-Speech-Recognition/
 │   │       └── supplements/ ← training_input / training_gt / training_supp .csv
 │   └── processed/           ← derived tables / cached stats (git-ignored)
 ├── notebooks/
-│   └── 01_eda_milk10k.ipynb ← Milestone 1 EDA (executed)
+│   └── 01_eda_milk10k.ipynb ← Exercise 1 EDA (executed)
 ├── src/
 │   └── milk10k.py           ← loaders, class map, merged image/lesion tables
 ├── reports/
 │   └── figures/             ← 12 exported EDA figures (PNG)
+├── exercises/
+│   └── exercise_1.pdf       ← deliverable: repo link + editor screenshot
 └── docs/
-    └── milestone1_deliverable.pdf ← repo link + editor screenshot
+    ├── build_deliverable.py ← builds exercises/exercise_1.pdf
+    └── editor_screenshot.png
 ```
 
 ## 5. Setup
@@ -179,7 +182,7 @@ jupyter lab notebooks/
 |---|---|
 | Public GitHub repository with the EDA code | https://github.com/jcole-jpg/Computer-Vision-Speech-Recognition |
 | EDA notebook | [`notebooks/01_eda_milk10k.ipynb`](notebooks/01_eda_milk10k.ipynb) |
-| PDF with repo link + editor screenshot of the project structure | [`docs/milestone1_deliverable.pdf`](docs/milestone1_deliverable.pdf) |
+| PDF with repo link + editor screenshot of the project structure | [`exercises/exercise_1.pdf`](exercises/exercise_1.pdf) |
 
 ## 7. References
 
