@@ -146,13 +146,15 @@ Computer-Vision-Speech-Recognition/
 │   │       └── supplements/ ← training_input / training_gt / training_supp .csv
 │   └── processed/           ← derived tables / cached stats (git-ignored)
 ├── notebooks/
-│   └── 01_eda_milk10k.ipynb ← Exercise 1 EDA (executed)
+│   ├── 01_eda_milk10k.ipynb ← Exercise 1 EDA (executed)
+│   └── 02_image_basics.ipynb ← Session 2: pixels, channels, colour (executed)
 ├── src/
 │   └── milk10k.py           ← loaders, class map, merged image/lesion tables
 ├── reports/
 │   └── figures/             ← 12 exported EDA figures (PNG)
 ├── exercises/
-│   └── exercise_1.pdf       ← deliverable: repo link + editor screenshot
+│   ├── exercise_1.pdf       ← deliverable: repo link + editor screenshot
+│   └── exercise_2.pdf       ← deliverable: session 2 notebook as PDF
 └── docs/
     ├── build_deliverable.py ← builds exercises/exercise_1.pdf
     └── editor_screenshot.png
@@ -183,6 +185,7 @@ jupyter lab notebooks/
 | Public GitHub repository with the EDA code | https://github.com/jcole-jpg/Computer-Vision-Speech-Recognition |
 | EDA notebook | [`notebooks/01_eda_milk10k.ipynb`](notebooks/01_eda_milk10k.ipynb) |
 | PDF with repo link + editor screenshot of the project structure | [`exercises/exercise_1.pdf`](exercises/exercise_1.pdf) |
+| Session 2 notebook — image basics (pixels, channels, colour) | [`notebooks/02_image_basics.ipynb`](notebooks/02_image_basics.ipynb) · [`exercises/exercise_2.pdf`](exercises/exercise_2.pdf) |
 
 ## 7. References
 
