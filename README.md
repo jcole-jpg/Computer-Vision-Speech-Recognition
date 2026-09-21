@@ -103,7 +103,7 @@ Images join to lesions via `lesion_id` (2 images per lesion, `image_type` ∈
 
 Notebook: [`notebooks/01_eda_milk10k.ipynb`](notebooks/01_eda_milk10k.ipynb)
 (executed, outputs included) · figures in [`reports/figures/`](reports/figures/)
-· loaders in [`src/milk10k.py`](src/milk10k.py)
+· loaders in [`src/milk10k/data.py`](src/milk10k/data.py)
 
 - [x] **Images** — count, resolution/aspect-ratio distribution, file sizes,
       colour statistics per modality, one paired example per class, mosaic
@@ -131,7 +131,51 @@ Notebook: [`notebooks/01_eda_milk10k.ipynb`](notebooks/01_eda_milk10k.ipynb)
 Reproduce: `jupyter nbconvert --to notebook --execute notebooks/01_eda_milk10k.ipynb`
 (≈ 10 s after the data is extracted).
 
-## 4. Project structure
+## 4. Homework — Extended EDA & data pipeline
+
+Notebook: [`notebooks/03_eda_pipeline.ipynb`](notebooks/03_eda_pipeline.ipynb)
+(executed) · report: [`exercises/exercise_3.pdf`](exercises/exercise_3.pdf)
+· code: the [`src/milk10k/`](src/milk10k/) package · tests: [`tests/`](tests/)
+
+| Part | Module | What it provides |
+|---|---|---|
+| 1 Metadata ↔ target | `milk10k.stats` | field inventory (type / level / missingness / leakage flags), chi-square + Cramér's V, Kruskal–Wallis + ε², ranked `association_table()` |
+| 2 Colour & histograms | `milk10k.color` | balanced per-class / per-modality sample, per-image RGB + grayscale histograms and statistics, class averages |
+| 3 Preprocessing | `milk10k.preprocess` | `PreprocessConfig`, `preprocess_image(src) -> (array, ImageInfo)`, `preprocess_batch(items) -> BatchResult` with `skipped=[(id, reason)]` |
+| 4 Data loader | `milk10k.loader` | `MILK10kLoader(df, config, batch_size, shuffle, seed)` → lazy batches of `(images, labels, ids)` from files that exist on disk |
+| 5 Visualiser | `milk10k.viz` | `show_image_grid`, `plot_class_balance`, `plot_batch_summary` + the Part 1–3 plots |
+
+```python
+import milk10k
+from milk10k import PreprocessConfig, MILK10kLoader, viz
+
+df = milk10k.load_images_table()
+loader = MILK10kLoader(df, PreprocessConfig(size=(128, 128)), batch_size=32, seed=0)
+batch = next(iter(loader))          # batch.images (32,128,128,3) float32 [0,1], batch.labels (32,) int64
+viz.show_image_grid(batch)          # sanity-check what the loader produces
+viz.plot_batch_summary(batch)       # pixel-value distribution + raw vs processed
+```
+
+### Key findings
+
+| Finding | Implication |
+|---|---|
+| **Age** is the most associated clinical field (ε² = 0.20; NV median 40 vs 65–70 for BCC / AKIEC / SCCKA); skin tone and anatomical site follow (V ≈ 0.15–0.18); sex is weak (V = 0.11) | Age is a legitimate auxiliary input; tone / site must be audited as centre proxies |
+| `diagnosis_confirm_type` ≡ `concomitant_biopsy` (V = 0.31): every non-biopsied lesion is benign | Workflow leakage — never a model feature |
+| `diagnosis_1..4`, `diagnosis_full`, `melanocytic`, `invasion_thickness_interval` are the label in disguise | Excluded from features |
+| No collection-centre field exists; `site` is anatomical, and `anatom_site_general`'s 37 % "missing" = trunk | Don't impute "unknown" — it silently encodes trunk |
+| Modality explains 32 % of blue-channel variance; within dermoscopy class explains only 2–8 % of channel means but **34 % of contrast** (MEL / NV / VASC dark blob vs pale BCC / AKIEC) | Colour alone separates pigmented vs keratinocytic only — MEL vs NV needs structure → learned features, per-modality normalisation |
+| Class balance 280 : 1 (BCC 5,044 images vs MAL_OTH 18), 72 % malignant | Split by lesion, class weights / re-sampling, macro-F1 and per-class sensitivity |
+
+Reproduce:
+
+```bash
+python -m pytest tests -q                                   # 32 tests
+jupyter nbconvert --to notebook --execute --inplace notebooks/03_eda_pipeline.ipynb   # ≈ 20 s
+python docs/build_report.py                                 # -> exercises/exercise_3.pdf
+```
+
+## 5. Project structure
 
 ```
 Computer-Vision-Speech-Recognition/
@@ -147,20 +191,29 @@ Computer-Vision-Speech-Recognition/
 │   └── processed/           ← derived tables / cached stats (git-ignored)
 ├── notebooks/
 │   ├── 01_eda_milk10k.ipynb ← Exercise 1 EDA (executed)
-│   └── 02_image_basics.ipynb ← Session 2: pixels, channels, colour (executed)
-├── src/
-│   └── milk10k.py           ← loaders, class map, merged image/lesion tables
+│   ├── 02_image_basics.ipynb ← Session 2: pixels, channels, colour (executed)
+│   └── 03_eda_pipeline.ipynb ← Homework: extended EDA + pipeline driver (executed)
+├── src/milk10k/             ← project package (import milk10k)
+│   ├── data.py              ← paths, class map, loaders, merged tables, available_subset
+│   ├── stats.py             ← metadata ↔ target association tests (Part 1)
+│   ├── color.py             ← dataset-level histogram / colour statistics (Part 2)
+│   ├── preprocess.py        ← PreprocessConfig, preprocess_image, preprocess_batch (Part 3)
+│   ├── loader.py            ← MILK10kLoader (Part 4)
+│   └── viz.py               ← image grids, class balance, batch summaries, EDA plots (Part 5)
+├── tests/                   ← pytest suite (synthetic + real-image smoke tests)
 ├── reports/
-│   └── figures/             ← 12 exported EDA figures (PNG)
+│   └── figures/             ← exported figures (PNG); 09_–12_ are the homework
 ├── exercises/
 │   ├── exercise_1.pdf       ← deliverable: repo link + editor screenshot
-│   └── exercise_2.pdf       ← deliverable: session 2 notebook as PDF
+│   ├── exercise_2.pdf       ← deliverable: session 2 notebook as PDF
+│   └── exercise_3.pdf       ← deliverable: homework report (4 pages, embedded plots)
 └── docs/
     ├── build_deliverable.py ← builds exercises/exercise_1.pdf
+    ├── build_report.py      ← builds exercises/exercise_3.pdf from the notebook outputs
     └── editor_screenshot.png
 ```
 
-## 5. Setup
+## 6. Setup
 
 Editor: **VS Code** with the Python and Jupyter extensions.
 
@@ -178,7 +231,7 @@ unzip milk10k.zip -d data/raw/milk10k
 jupyter lab notebooks/
 ```
 
-## 6. Deliverables
+## 7. Deliverables
 
 | Deliverable | Where |
 |---|---|
@@ -186,8 +239,9 @@ jupyter lab notebooks/
 | EDA notebook | [`notebooks/01_eda_milk10k.ipynb`](notebooks/01_eda_milk10k.ipynb) |
 | PDF with repo link + editor screenshot of the project structure | [`exercises/exercise_1.pdf`](exercises/exercise_1.pdf) |
 | Session 2 notebook — image basics (pixels, channels, colour) | [`notebooks/02_image_basics.ipynb`](notebooks/02_image_basics.ipynb) · [`exercises/exercise_2.pdf`](exercises/exercise_2.pdf) |
+| Homework — extended EDA & data pipeline (code + 2–4 page report) | [`src/milk10k/`](src/milk10k/) · [`notebooks/03_eda_pipeline.ipynb`](notebooks/03_eda_pipeline.ipynb) · [`exercises/exercise_3.pdf`](exercises/exercise_3.pdf) |
 
-## 7. References
+## 8. References
 
 - ISIC Archive — MILK10k dataset page: https://api.isic-archive.com/doi/milk10k/
 - ISIC Archive — MILK10k collection (10,480 images): https://api.isic-archive.com/collections/425/

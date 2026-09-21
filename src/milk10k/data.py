@@ -1,4 +1,4 @@
-"""Loading helpers and constants for the MILK10k dataset.
+"""Loading helpers and constants for the MILK10k dataset (tables, paths, class map).
 
 Expected layout (git-ignored):
     data/raw/milk10k/
@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pandas as pd
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = PROJECT_ROOT / "data" / "raw" / "milk10k"
 IMAGE_DIR = DATA_DIR / "images"
 FIG_DIR = PROJECT_ROOT / "reports" / "figures"
@@ -117,3 +117,19 @@ def load_lesions_table(images: pd.DataFrame | None = None) -> pd.DataFrame:
                            values="isic_id", aggfunc="first")
     pivot.columns = [f"isic_id_{c}" for c in pivot.columns]
     return first.merge(pivot, on="lesion_id", how="left")
+
+
+def available_subset(df: pd.DataFrame, image_dir: Path | None = None,
+                     path_col: str = "path") -> pd.DataFrame:
+    """Keep only rows whose image file actually exists on disk.
+
+    Never assume every metadata row has a matching image: partial downloads,
+    corrupt extractions or a sub-sampled local copy are all common. ``df`` needs
+    a ``path`` column (as produced by :func:`load_images_table`) or an
+    ``isic_id`` column, in which case paths are built under ``image_dir``.
+    """
+    if path_col not in df.columns:
+        image_dir = Path(image_dir) if image_dir is not None else IMAGE_DIR
+        df = df.assign(**{path_col: df["isic_id"].map(lambda i: image_dir / f"{i}.jpg")})
+    exists = df[path_col].map(lambda p: Path(p).is_file())
+    return df[exists].reset_index(drop=True)
