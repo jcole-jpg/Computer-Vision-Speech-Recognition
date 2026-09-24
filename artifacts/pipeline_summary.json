@@ -1,0 +1,53 @@
+{
+  "seed": 42,
+  "split_date": "2026-09-24",
+  "image_size": 224,
+  "integrity": {
+    "n_images": 10480,
+    "missing": 0,
+    "unreadable": 0
+  },
+  "splits": {
+    "sizes": {
+      "train": 3742,
+      "val": 749,
+      "test": 749
+    },
+    "max_dev_pp_dx": 0.1,
+    "max_dev_pp_diagnosis_1": 0.14
+  },
+  "train_imbalance_ratio_11class": 300.3,
+  "norm_stats": {
+    "mean": [
+      0.6783,
+      0.5234,
+      0.4712
+    ],
+    "std": [
+      0.1269,
+      0.1348,
+      0.1568
+    ]
+  },
+  "sanity": {
+    "batch_shape": [
+      32,
+      3,
+      224,
+      224
+    ],
+    "dtype": "torch.float32",
+    "min": -5.3452,
+    "max": 3.5356,
+    "mean": -0.3508,
+    "label_histogram_first_20_batches": {
+      "Benign": 213,
+      "Indeterminate": 221,
+      "Malignant": 206
+    },
+    "n_train_images": 7484,
+    "n_val_images": 1498,
+    "n_test_images": 1498,
+    "seconds_per_train_epoch": 19.32
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "computed_on": "train split only",
+  "scheme": "inverse frequency (N / (K * n_c))",
+  "diagnosis_1": {
+    "Benign": 1.1789540012602395,
+    "Indeterminate": 14.014981273408239,
+    "Malignant": 0.4806679511881824
+  },
+  "dx_11class": {
+    "AKIEC": 1.5676581483033096,
+    "BCC": 0.18878014327514883,
+    "BEN_OTH": 10.630681818181818,
+    "BKL": 0.8767572633552015,
+    "DF": 9.194103194103194,
+    "INF": 9.44949494949495,
+    "MAL_OTH": 56.696969696969695,
+    "MEL": 1.0630681818181817,
+    "NV": 0.6394395078605605,
+    "SCCKA": 1.0034861893268974,
+    "VASC": 10.30853994490358
+  },
+  "note": "Use class-weighted loss OR the WeightedRandomSampler, not both."
+}

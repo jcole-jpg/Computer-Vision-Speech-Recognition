@@ -1,0 +1,10 @@
+# Session 2 findings re-tested on the full dataset (B2.2)
+
+| Session 2 finding | Still true on the full dataset? | Consequence for the pipeline |
+|---|---|---|
+| anatom_site_general's ~37% 'missing' is actually trunk | YES - 98.4% of the 3912 missing rows have site='trunk' (only 62 true unknowns) | recover the site with data.resolve_site() instead of imputing 'unknown'; missingness drops 37.3% -> 0.6% |
+| diagnosis_confirm_type leaks the label (workflow proxy) | YES - histopathology 72.3% malignant vs 2.2% for clinical assessment | excluded from model inputs (B4); it is also why the 69% malignancy rate is a selection artefact |
+| extreme class imbalance (~280:1) and ~72% malignant | PARTLY - imbalance is 280:1 (BCC 5044 vs MAL_OTH 18); malignancy is 69.4%, not 72% | class weights + WeightedRandomSampler (B8); macro metrics only; MAL_OTH excluded from the headline average |
+| image_type (modality) drives colour far more than class does | YES - median file size 39.7 KB clinical vs 26.6 KB dermoscopic, and the A3.5 class colour gap is only 6.54 deg of hue | colour augmentation capped at hue<=0.02 / brightness<=0.1; modality is balanced by construction (1 of each per lesion) so it cannot be a shortcut |
+| (new at full scale) image geometry varies | NO - all 10,480 images are exactly 600x450, a single unique resolution | 224x224 is a pure downscale for 100% of the set; no upsampling, and no size-based shortcut is possible |
+| (new) could file size alone be a malignancy shortcut? | NO - ROC-AUC 0.464 dermoscopic / 0.511 clinical, i.e. chance; and no two images share an MD5 | no de-shortcutting needed; uniform geometry and a single JPEG quality (75) are what protect against it |

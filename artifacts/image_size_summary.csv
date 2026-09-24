@@ -1,0 +1,4 @@
+scope,n_images,width_min,width_median,width_max,height_min,height_median,height_max,bytes_min,bytes_median,bytes_max
+all,10480,600,600.0,600,450,450.0,450,11822,32172.5,101478
+clinical,5240,600,600.0,600,450,450.0,450,11822,39699.5,101478
+dermoscopic,5240,600,600.0,600,450,450.0,450,12452,26622.5,75876

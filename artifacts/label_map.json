@@ -1,0 +1,133 @@
+{
+  "primary_target": {
+    "column": "diagnosis_1",
+    "n_classes": 3,
+    "classes": [
+      "Benign",
+      "Indeterminate",
+      "Malignant"
+    ],
+    "map": {
+      "Benign": 0,
+      "Indeterminate": 1,
+      "Malignant": 2
+    },
+    "lesion_counts": {
+      "Benign": 1483,
+      "Indeterminate": 123,
+      "Malignant": 3634
+    },
+    "decision": "keep Indeterminate as a third class",
+    "rationale": "All Indeterminate lesions are AKIEC, so the label encodes pathologist confidence rather than a distinct lesion type. It is kept anyway because P(Malignant)+P(Indeterminate) recovers the binary decision after inference, whereas merging at training time is irreversible."
+  },
+  "stretch_target": {
+    "column": "dx",
+    "n_classes": 11,
+    "classes": [
+      "AKIEC",
+      "BCC",
+      "BEN_OTH",
+      "BKL",
+      "DF",
+      "INF",
+      "MAL_OTH",
+      "MEL",
+      "NV",
+      "SCCKA",
+      "VASC"
+    ],
+    "map": {
+      "AKIEC": 0,
+      "BCC": 1,
+      "BEN_OTH": 2,
+      "BKL": 3,
+      "DF": 4,
+      "INF": 5,
+      "MAL_OTH": 6,
+      "MEL": 7,
+      "NV": 8,
+      "SCCKA": 9,
+      "VASC": 10
+    },
+    "class_names": {
+      "AKIEC": "Actinic keratosis / intraepidermal carcinoma",
+      "BCC": "Basal cell carcinoma",
+      "BEN_OTH": "Other benign proliferations",
+      "BKL": "Benign keratinocytic lesion",
+      "DF": "Dermatofibroma",
+      "INF": "Inflammatory / infectious",
+      "MAL_OTH": "Other malignant proliferations",
+      "MEL": "Melanoma",
+      "NV": "Melanocytic nevus",
+      "SCCKA": "Squamous cell carcinoma / keratoacanthoma",
+      "VASC": "Vascular lesion / hemorrhage"
+    },
+    "lesion_counts": {
+      "AKIEC": 303,
+      "BCC": 2522,
+      "BEN_OTH": 44,
+      "BKL": 544,
+      "DF": 52,
+      "INF": 50,
+      "MAL_OTH": 9,
+      "MEL": 450,
+      "NV": 746,
+      "SCCKA": 473,
+      "VASC": 47
+    },
+    "malignant_classes": [
+      "AKIEC",
+      "BCC",
+      "MAL_OTH",
+      "MEL",
+      "SCCKA"
+    ],
+    "decision": "keep all 11 classes; handle imbalance with weights + sampler",
+    "rationale": "Merging rare classes into 'other' is irreversible and yields a category no clinician can act on. Imbalance is handled in the loss weights and the WeightedRandomSampler instead.",
+    "low_support_classes": [
+      "MAL_OTH"
+    ],
+    "low_support_caveat": "MAL_OTH has 9 lesions, so roughly 1 reaches the test split. Its per-class metric is reported for completeness but is not statistically meaningful."
+  },
+  "binary_collapse": {
+    "Benign": "Benign",
+    "Indeterminate": "Malignant",
+    "Malignant": "Malignant"
+  },
+  "class_to_diagnosis1": {
+    "AKIEC": [
+      "Indeterminate",
+      "Malignant"
+    ],
+    "BCC": [
+      "Malignant"
+    ],
+    "BEN_OTH": [
+      "Benign"
+    ],
+    "BKL": [
+      "Benign"
+    ],
+    "DF": [
+      "Benign"
+    ],
+    "INF": [
+      "Benign"
+    ],
+    "MAL_OTH": [
+      "Malignant"
+    ],
+    "MEL": [
+      "Malignant"
+    ],
+    "NV": [
+      "Benign"
+    ],
+    "SCCKA": [
+      "Malignant"
+    ],
+    "VASC": [
+      "Benign"
+    ]
+  }
+}

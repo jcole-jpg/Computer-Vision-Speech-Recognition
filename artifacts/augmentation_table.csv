@@ -1,0 +1,8 @@
+augmentation,parameters,medical_justification
+RandomResizedCrop,"size=224, scale=(0.8, 1.0)",A lesion keeps its diagnosis when framed slightly tighter or looser; scale is capped at 0.8 so the lesion border - a key diagnostic feature - stays in frame.
+RandomHorizontalFlip,p=0.5,Skin lesions have no canonical left-right orientation; a mirrored mole is the same mole.
+RandomVerticalFlip,p=0.5,Dermoscopy has no fixed 'up'; the camera angle is arbitrary.
+RandomRotation,degrees=30,"Rotation is a pure camera-orientation change. Asymmetry (the 'A' of ABCDE) is rotation-invariant, so it is preserved."
+ColorJitter (brightness/contrast),"brightness=0.1, contrast=0.1",Mimics real illumination and exposure variation between clinics. Kept small - see A3.5: beyond ~0.3 the shift exceeds the real Benign/Malignant brightness gap.
+ColorJitter (hue),hue=0.02,Absorbs white-balance differences only. Capped at 0.02 (~7 degrees) because pigment colour is diagnostic signal; larger values recolour the lesion itself.
+Normalize,train-split mean/std,"An affine rescale of intensities, identical in train and eval; carries no label information."
