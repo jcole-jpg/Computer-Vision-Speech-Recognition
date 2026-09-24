@@ -72,3 +72,18 @@ def test_real_loader_smoke(real_images):
     b = next(iter(loader))
     assert b.images.shape == (16, 64, 64, 3) and b.skipped == []
     assert set(b.label_names) <= set(milk10k.CLASS_CODES)
+
+
+def test_strict_loader_fails_loudly_on_missing_files(synthetic_dataset):
+    """B1: the project pipeline must never silently skip a missing image."""
+    import pytest
+
+    _, df = synthetic_dataset          # contains one row with no file on disk
+    with pytest.raises(FileNotFoundError, match="no image on disk"):
+        MILK10kLoader(df, PreprocessConfig(size=(16, 16)), strict=True)
+
+
+def test_non_strict_loader_still_skips(synthetic_dataset):
+    _, df = synthetic_dataset
+    loader = MILK10kLoader(df, PreprocessConfig(size=(16, 16)), strict=False)
+    assert loader.n_unavailable == 1
