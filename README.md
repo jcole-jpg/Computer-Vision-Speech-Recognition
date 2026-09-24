@@ -99,7 +99,7 @@ published for evaluation.
 Images join to lesions via `lesion_id` (2 images per lesion, `image_type` ∈
 {`clinical: close-up`, `dermoscopic`}).
 
-## 3. Milestone 1 — Exploratory Data Analysis
+## 3. Session 1 — Exploratory Data Analysis
 
 Notebook: [`notebooks/01_eda_milk10k.ipynb`](notebooks/01_eda_milk10k.ipynb)
 (executed, outputs included) · figures in [`reports/figures/`](reports/figures/)
@@ -175,47 +175,44 @@ jupyter nbconvert --to notebook --execute --inplace notebooks/03_eda_pipeline.ip
 python docs/build_report.py                                 # -> exercises/exercise_3.pdf
 ```
 
-## 5. Project structure
+## 5. Homework Sessions 1-3 + Milestone 1 (current)
 
-```
-Computer-Vision-Speech-Recognition/
-├── README.md                ← this file
-├── requirements.txt         ← Python dependencies
-├── .gitignore               ← keeps data / checkpoints / secrets out of git
-├── data/
-│   ├── raw/
-│   │   └── milk10k/         ← extracted dataset (git-ignored)
-│   │       ├── images/      ← 10,480 × ISIC_*.jpg
-│   │       ├── metadata.csv
-│   │       └── supplements/ ← training_input / training_gt / training_supp .csv
-│   └── processed/           ← derived tables / cached stats (git-ignored)
-├── notebooks/
-│   ├── 01_eda_milk10k.ipynb ← Exercise 1 EDA (executed)
-│   ├── 02_image_basics.ipynb ← Session 2: pixels, channels, colour (executed)
-│   └── 03_eda_pipeline.ipynb ← Homework: extended EDA + pipeline driver (executed)
-├── src/milk10k/             ← project package (import milk10k)
-│   ├── data.py              ← paths, class map, loaders, merged tables, available_subset
-│   ├── stats.py             ← metadata ↔ target association tests (Part 1)
-│   ├── color.py             ← dataset-level histogram / colour statistics (Part 2)
-│   ├── preprocess.py        ← PreprocessConfig, preprocess_image, preprocess_batch (Part 3)
-│   ├── loader.py            ← MILK10kLoader (Part 4)
-│   └── viz.py               ← image grids, class balance, batch summaries, EDA plots (Part 5)
-├── tests/                   ← pytest suite (synthetic + real-image smoke tests)
-├── reports/
-│   └── figures/             ← exported figures (PNG); 09_–12_ are the homework
-├── exercises/
-│   ├── exercise_1.pdf       ← deliverable: repo link + editor screenshot
-│   ├── exercise_2.pdf       ← deliverable: session 2 notebook as PDF
-│   └── exercise_3.pdf       ← deliverable: homework report (4 pages, embedded plots)
-└── docs/
-    ├── build_deliverable.py ← builds exercises/exercise_1.pdf
-    ├── build_report.py      ← builds exercises/exercise_3.pdf from the notebook outputs
-    └── editor_screenshot.png
-```
+The graded deliverable for Sessions 1-3. **Part A** is a notebook of twelve
+exercises; **Part B** turns the Session 2 code into a leak-free, reproducible
+project pipeline.
 
-## 6. Setup
+| Part | Deliverable |
+|---|---|
+| A | [`homework_part_a.ipynb`](homework_part_a.ipynb) - 12 exercises, runs top to bottom |
+| A | [`homework_part_a.pdf`](homework_part_a.pdf) - the exported notebook (35 pages) |
+| B | [`scripts/build_pipeline.py`](scripts/build_pipeline.py) - rebuilds every artefact below |
+| B | [`artifacts/`](artifacts/) - splits, label map, class weights, normalisation stats, reports |
+| B | [`reports/milestone1_report.md`](reports/milestone1_report.md) - the 2-page Milestone 1 report |
+| - | [`SUBMISSION.md`](SUBMISSION.md) - direct link to every file |
 
-Editor: **VS Code** with the Python and Jupyter extensions.
+### Headline findings
+
+- **AKIEC is the only class spanning two `diagnosis_1` values** (180 Malignant /
+  123 Indeterminate), so `diagnosis_1` *cannot* be derived from an 11-class
+  prediction - the two label schemes are carried side by side.
+- **Biopsy enrichment is measurable in the metadata**: histopathology-confirmed
+  lesions are 72.3 % malignant against 2.2 % for clinical assessment. The
+  dataset's 69 % malignancy rate is a selection artefact, not a prevalence.
+- **The lesion leak is worth up to 0.52 balanced-accuracy points.** A metadata-only
+  random forest scores the same under a naive and a grouped split (0.424 vs
+  0.425), but a "sibling oracle" that just copies the other view's label scores
+  **0.857** against 0.333. The leak is harmless only to models too weak to use it.
+- **Every image is JPEG quality 75**, recovered from the quantization tables.
+  File size carries **no** malignancy shortcut (ROC-AUC 0.46 / 0.51).
+- **The colour-jitter limits are measured, not guessed.** The real Benign/Malignant
+  gap is 6.54 deg of hue and 0.077 of brightness; `hue >= 0.05` and
+  `brightness >= 0.3` exceed it and are not label-safe.
+
+---
+
+## 6. Setup and reproduction
+
+Python **3.13** (any 3.11+ works). Editor: VS Code with the Python and Jupyter extensions.
 
 ```bash
 git clone https://github.com/jcole-jpg/Computer-Vision-Speech-Recognition.git
@@ -224,24 +221,198 @@ cd Computer-Vision-Speech-Recognition
 python3 -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-
-# Download milk10k.zip from the ISIC Archive (see links below), then:
-unzip milk10k.zip -d data/raw/milk10k
-
-jupyter lab notebooks/
 ```
 
-## 7. Deliverables
+### Where to put the data, and how the code finds it
 
-| Deliverable | Where |
+Download `milk10k.zip` from the ISIC Archive (links in section 9) and extract it so
+that `metadata.csv`, `images/` and `supplements/` sit directly inside the dataset folder:
+
+```bash
+unzip milk10k.zip -d data/raw/milk10k
+```
+
+`data/raw/milk10k/` is the **default** and needs no configuration. To keep the ~350 MB
+of images elsewhere, set one environment variable - nothing else changes:
+
+```bash
+export MILK10K_DATA=/Volumes/ssd/milk10k
+```
+
+Every path in the project derives from [`src/milk10k/config.py`](src/milk10k/config.py).
+There is no absolute path anywhere in the code, and no other module reads `os.environ`.
+Check what the code resolved with:
+
+```bash
+python -c "from milk10k.config import describe; print(describe())"
+```
+
+### Exact commands
+
+```bash
+# 1. rebuild every Part B artefact: splits, label map, weights, stats, figures, reports
+python scripts/build_pipeline.py
+
+# 2. regenerate and execute the Part A notebook, then export it to PDF
+python scripts/build_homework_notebook.py --run
+python scripts/export_notebook_pdf.py homework_part_a.ipynb
+
+# 3. run the test suite (100 tests; the real-data ones skip if MILK10k is absent)
+python -m pytest tests/ -q
+```
+
+`build_pipeline.py` takes about 35 s and is deterministic: same seed in, byte-identical
+splits out.
+
+---
+
+## 7. Repository structure
+
+```
+Computer-Vision-Speech-Recognition/
+├── README.md                     ← this file
+├── SUBMISSION.md                 ← direct link to every graded deliverable
+├── requirements.txt              ← pinned minimum versions of every dependency
+├── .gitignore                    ← keeps raw images out of git, lets artifacts/ in
+├── homework_part_a.ipynb         ← PART A: the 12 exercises, executed with outputs
+├── homework_part_a.pdf           ← PART A: the same notebook exported to PDF
+│
+├── src/milk10k/                  ← the importable package - ALL reusable logic
+│   ├── config.py                 ← the ONE place for paths, seed, image size
+│   ├── data.py                   ← loaders, class map, image + lesion tables
+│   ├── integrity.py              ← label cross-checks (A1.1) and image verification (B1)
+│   ├── imaging.py                ← NumPy geometry, PSNR, JPEG quality, file sizes (A2)
+│   ├── splits.py                 ← grouped/stratified lesion-level splitting (A3.2-3, B5)
+│   ├── leakage.py                ← what a lesion leak does to a real metric (A3.1)
+│   ├── metrics.py                ← dummy baselines and cost-aware evaluation (A3.4)
+│   ├── labels.py                 ← label strategy, label map, class weights (B3)
+│   ├── augment.py                ← train/eval transforms + augmentation audit (A3.5, B7)
+│   ├── datasets.py               ← LesionDataset, image Dataset, DataLoaders (A3.6, B8)
+│   ├── stats.py                  ← metadata ↔ target association tests (Session 2)
+│   ├── color.py                  ← histogram / colour statistics (Session 2)
+│   ├── preprocess.py             ← the original preprocessing pipeline (Session 2)
+│   ├── loader.py                 ← the original Session 2 loader, kept for reference
+│   └── viz.py                    ← image grids, class balance, EDA plots
+│
+├── scripts/                      ← entry points; they orchestrate, they do not implement
+│   ├── build_pipeline.py         ← builds every Part B artefact (B1-B8)
+│   ├── build_homework_notebook.py← generates and executes homework_part_a.ipynb
+│   └── export_notebook_pdf.py    ← notebook → HTML → headless Chrome → PDF
+│
+├── artifacts/                    ← COMMITTED generated outputs (small, and the evidence)
+│   ├── splits/train.csv          ← 7,484 images, one row per image        (B5)
+│   ├── splits/val.csv            ← 1,498 images
+│   ├── splits/test.csv           ← 1,498 images
+│   ├── label_map.json            ← label strategy + string→integer mapping (B3)
+│   ├── class_weights.json        ← inverse-frequency weights, TRAIN only   (B8)
+│   ├── norm_stats.json           ← channel mean/std, TRAIN only            (B8)
+│   ├── image_size_summary.csv    ← geometry of all 10,480 images           (B1)
+│   ├── data_quality_report.md    ← missing values, shortcuts, leaky columns(B4)
+│   ├── augmentation_table.csv    ← each augmentation + medical justification(B7)
+│   ├── split_verification.csv    ← the B5 checks, saved
+│   └── pipeline_summary.json     ← every headline number, machine-readable
+│
+├── data/
+│   ├── raw/milk10k/              ← the dataset (GIT-IGNORED - download it)
+│   └── processed/                ← bulky intermediates (git-ignored)
+├── notebooks/                    ← exploratory notebooks from earlier sessions
+│   ├── 01_eda_milk10k.ipynb      ← Session 1 EDA
+│   ├── 02_image_basics.ipynb     ← Session 2: pixels, channels, colour
+│   └── 03_eda_pipeline.ipynb     ← Session 2 homework: extended EDA
+├── tests/                        ← 100 pytest tests
+│   ├── conftest.py               ← synthetic image fixtures
+│   ├── test_splits.py            ← the A3.2 property test, 10 seeds
+│   ├── test_imaging_datasets.py  ← PSNR, views, transforms, Datasets
+│   └── test_*.py                 ← Session 2 loader/preprocess/stats tests
+├── reports/
+│   ├── milestone1_report.md      ← the Milestone 1 report (B9)
+│   └── figures/                  ← every exported figure (PNG)
+├── exercises/                    ← earlier graded deliverables (PDF)
+└── docs/                         ← PDF builders for the earlier exercises
+```
+
+**Why it is organised this way.** The guiding rule is that **nothing importable
+lives in a notebook, and nothing that runs lives only in a notebook.** Three layers:
+
+1. `src/milk10k/` holds every reusable function, one module per concern, each named
+   after the question it answers rather than the exercise that prompted it. This is
+   what makes "do not copy-paste between notebooks" enforceable - the notebook
+   imports `splits.split_lesions`, and so does the pipeline script, and so do the
+   tests, so there is exactly one implementation to be right or wrong.
+2. `scripts/` holds the entry points. They orchestrate and print; they contain no
+   logic worth testing. Anything in a script that became worth reusing would move
+   down into the package.
+3. Generated output is kept strictly apart from source, and split by size:
+   `artifacts/` is small and **committed**, because the splits and the label map
+   *are* the reproducibility evidence and a grader must be able to read them
+   without downloading 350 MB of JPEGs; `reports/figures/` holds PNGs;
+   `data/processed/` holds bulky intermediates and is ignored.
+
+Configuration is the fourth rule: `config.py` is the only module that knows a path
+or a seed, so pointing the project at a new dataset location is a one-line change.
+
+---
+
+## 8. Data handling rules
+
+| Rule | Detail |
 |---|---|
-| Public GitHub repository with the EDA code | https://github.com/jcole-jpg/Computer-Vision-Speech-Recognition |
-| EDA notebook | [`notebooks/01_eda_milk10k.ipynb`](notebooks/01_eda_milk10k.ipynb) |
-| PDF with repo link + editor screenshot of the project structure | [`exercises/exercise_1.pdf`](exercises/exercise_1.pdf) |
-| Session 2 notebook — image basics (pixels, channels, colour) | [`notebooks/02_image_basics.ipynb`](notebooks/02_image_basics.ipynb) · [`exercises/exercise_2.pdf`](exercises/exercise_2.pdf) |
-| Homework — extended EDA & data pipeline (code + 2–4 page report) | [`src/milk10k/`](src/milk10k/) · [`notebooks/03_eda_pipeline.ipynb`](notebooks/03_eda_pipeline.ipynb) · [`exercises/exercise_3.pdf`](exercises/exercise_3.pdf) |
+| **Raw images are never committed** | `data/raw/*` is git-ignored. ~350 MB, and CC-BY-NC forbids redistribution. |
+| **Split CSVs are always committed** | `artifacts/splits/*.csv` - a few hundred KB, and without them the experiment is not reproducible. |
+| **Generated files live apart from source** | `artifacts/` (committed) · `reports/figures/` (committed) · `data/processed/` (ignored). |
+| **Seed** | `42`, defined once in `config.SEED`. |
+| **Splits created** | **2026-09-24**, by `scripts/build_pipeline.py`, from `config.SPLIT_DATE`. |
+| **Normalisation & weights** | Computed on the **train split only** - never the full dataset. |
+| **Regenerating** | Deterministic: same seed → byte-identical splits. |
 
-## 8. References
+---
+
+## 9. Key decisions so far
+
+Full reasoning and evidence in [`reports/milestone1_report.md`](reports/milestone1_report.md).
+
+| Decision | Choice | Why, in one line |
+|---|---|---|
+| **Label strategy** | Keep `Indeterminate` as a 3rd class; keep all 11 fine classes | `P(Mal) + P(Indet)` recovers the binary decision after inference; merging at training time is irreversible. |
+| **Split design** | `StratifiedGroupKFold` at lesion level, stratified on the 11-class label, 5/7-1/7-1/7 | Grouping is the only defence against the 0.857-scoring sibling oracle; the 11-class label is finer, so balancing it also balances `diagnosis_1`. |
+| **Split sizes** | 1/7 (14.29 %), not 15 % | MAL_OTH's 9 lesions cap the fold count at 9, which quantises achievable sizes to 1/n; 1/7 is the nearest, and requesting it makes the realised sizes exact. |
+| **Resolution** | 224 x 224 | Every image is exactly 600 x 450, so 224 is a pure downscale for 100 % of the set - no upsampling anywhere. |
+| **View handling** | Train per image, **evaluate per lesion** | Doubles the training signal while keeping the metric on the unit a clinician acts on. |
+| **Normalisation** | Train-split mean/std, `[0.678, 0.523, 0.471] / [0.127, 0.135, 0.157]` | Dataset statistics computed over test rows are leakage, exactly like a scaler fitted before splitting. |
+| **Augmentation** | Geometry freely; `hue <= 0.02`, `brightness <= 0.1` | Measured: anything above those limits shifts colour further than the real Benign/Malignant gap. |
+| **Imbalance** | Both implemented: weighted loss **and** `WeightedRandomSampler` | Train imbalance is 300:1 (BCC 3,604 vs MAL_OTH 12). Use one or the other, not both. |
+
+---
+
+## 10. Packaging the submission
+
+Everything a grader needs, collected into one folder and one emailable zip:
+
+```bash
+python scripts/build_submission_folder.py
+```
+
+Writes `Finished/` (~15 MB, 59 files) and `Cole_Joshua_CVSR_Sessions_1-3.zip` (~12 MB):
+
+```
+Finished/
+├── 00_START_HERE.pdf / .md      cover sheet: repo URL + where every requirement is answered
+├── SUBMISSION.md                the required link list
+├── 01_Part_A_notebook/          homework_part_a.pdf (33 pp) + .ipynb
+├── 02_Part_B_milestone1/        report, prevalence analysis, README, artifacts, figures, source
+└── 03_earlier_sessions/         exercises 1-3
+```
+
+Both are git-ignored: every file in them is assembled from content already committed
+elsewhere in the repo, so committing the bundle would duplicate ~15 MB. The Markdown
+reports are rendered to PDF (headless Chrome, no LaTeX needed) and the photo-heavy
+figures are re-encoded to JPEG so the zip stays comfortably under a 25 MB mail limit —
+full-resolution PNGs remain in `reports/figures/`.
+
+---
+
+## 11. References
+
 
 - ISIC Archive — MILK10k dataset page: https://api.isic-archive.com/doi/milk10k/
 - ISIC Archive — MILK10k collection (10,480 images): https://api.isic-archive.com/collections/425/

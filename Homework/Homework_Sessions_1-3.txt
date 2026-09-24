@@ -1,0 +1,464 @@
+=====================================================================
+COMPUTER VISION AND SPEECH RECOGNITION - EADA
+HOMEWORK: SESSIONS 1-3  +  COURSE PROJECT MILESTONE 1
+=====================================================================
+
+Dataset : MILK10k (metadata.csv, training_gt.csv, images)
+Setup   : you work with YOUR OWN code. Load the CSVs with pandas,
+          write your own functions, and import only standard packages
+          (numpy, pandas, matplotlib, Pillow, opencv-python,
+          scikit-learn, torch, torchvision, ...). Declare them in
+          requirements.txt.
+Deliver : Everything goes through the student's OWN GitHub repo (see
+          "WHAT TO SUBMIT" at the end):
+            Part A -> a Jupyter notebook committed to the repo AND
+                      exported to PDF (upload the PDF).
+            Part B -> the project files committed to the repo, plus a
+                      SUBMISSION.md with a direct link to EACH file.
+          Write short answers to the questions in Markdown cells.
+Rules   : individual work. Write your own code; you may read the docs.
+          Using an AI assistant is fine for explanations, but every line
+          you submit must be something you can explain out loud.
+Note    : Never hard-code absolute paths: read the data folder from a
+          single config variable or environment variable and document
+          it in your README. Part A can be done with a subset of images
+          when an exercise says so (keep only the rows whose file exists
+          on disk); the exercises that need many images say how many.
+          Part B needs the FULL image set.
+
+
+In the Session 2 homework you already did: metadata vs. target
+analysis, colour/histogram comparison across classes, a
+preprocessing function (single + batch), a data loader with
+"available images only" filtering, an image-grid visualizer and a
+class-balance plot.
+In this Session 3 homework:
+  - Part A gives you new practice: checking data consistency,
+    manipulating pixels and histograms from scratch, measuring how
+    leakage and imbalance change real model results, hunting
+    duplicates, and auditing augmentations quantitatively.
+  - Part B turns your Session 2 code into a leak-free, reproducible
+    project pipeline: you evolve your own Session 2 module (splits,
+    label strategy, train-only statistics, augmentation, sampler,
+    tests) instead of starting from zero.
+You may reuse your own Session 2 functions anywhere in this homework.
+
+
+=====================================================================
+PART A - PRACTISING SESSIONS 1, 2 AND 3
+=====================================================================
+
+---------------------------------------------------------------------
+A1. SESSION 1 - Trusting and shaping the data (pandas)
+---------------------------------------------------------------------
+
+A1.1 Cross-check the two label files.
+  metadata.csv (per image) and training_gt.csv (per lesion) describe
+  the same lesions. Before trusting them, verify IN CODE (with asserts
+  and a printed summary of the violations, if any):
+    (a) the set of lesion_id is identical in both files
+    (b) every lesion has exactly ONE positive class in the one-hot gt
+    (c) does each of the 11 classes map to exactly ONE diagnosis_1
+        value? Build the table class -> diagnosis_1 with lesion counts
+        and report every class that does NOT (with the counts)
+    (d) each diagnosis_3 value belongs to exactly one diagnosis_2
+        value, and each diagnosis_2 to exactly one diagnosis_1
+    (e) the two images of a lesion have identical age, sex, site and
+        diagnosis fields
+  Then answer (4-5 sentences): what did you find in (c), and what does
+  it imply for the label strategy of the project (could you derive
+  diagnosis_1 from an 11-class prediction)? Which of these checks would
+  you repeat on any new medical dataset before training, and which
+  failure would be the most dangerous?
+
+A1.2 Ask the data five questions.
+  Answer each with a few lines of pandas (boolean masks, query,
+  groupby) and print a single clear result:
+    1. How many BCC lesions are in patients aged 70 or more on the
+       head/neck?
+    2. Which of the 11 classes has the highest percentage of images
+       with image_manipulation == "altered", and what is that percentage?
+    3. Youngest and oldest patient with a melanoma (MEL), and the gap.
+    4. Is a missing anatom_site_general informative? Compare the class
+       distribution of lesions WITH and WITHOUT a recorded site: which
+       class changes the most (in percentage points)?
+    5. How does the percentage of Malignant lesions change with
+       diagnosis_confirm_type (e.g. histopathology vs. the other
+       confirmation types)? What does that tell you about how the
+       dataset was built and about which lesions get into it?
+
+A1.3 Build a lesion-level table.
+  Models will often need ONE row per lesion. Starting from the
+  per-image metadata, build a table lesions with columns:
+    lesion_id, derm_id, clinical_id (the isic_id of each image),
+    diagnosis_1, dx (the 11-class label from training_gt.csv), age,
+    sex, site.
+  Use pivot / unstack / groupby (no Python loops over rows). Assert:
+  5,240 rows, no missing derm_id or clinical_id, no duplicate
+  lesion_id. Save it as a CSV. You will use it in A3.
+
+A1.4 Task framing (max 200 words).
+  Write the "problem specification" for the course project: what is
+  the input (which image type(s)? metadata?), what is the output,
+  who would use the prediction and at what moment of the clinical
+  workflow, which metric you would optimise and why, what error is
+  more costly, and TWO ways in which the MILK10k data differ from the
+  situation where the model would be used.
+
+
+---------------------------------------------------------------------
+A2. SESSION 2 - Working with pixels
+---------------------------------------------------------------------
+
+A2.1 Arrays, views and memory.
+  (a) Using ONLY NumPy (indexing / axis operations; no PIL, no cv2), produce the
+      left-right flip, the up-down flip, the 90-degree rotation and the
+      transpose of an image array. Verify each against Pillow's
+      transpose (they must be identical arrays).
+  (b) Find out which of these operations return a VIEW and which a COPY
+      (np.shares_memory). Show, with a two-line experiment, what
+      happens to the original when you modify a view.
+  (c) Memory budget: compute (with code) the RAM needed to keep ALL
+      10,480 images in memory as uint8 and as float32, at the original
+      resolution and at 224x224. Can you pre-load the dataset on your
+      laptop? What would you do instead?
+
+A2.2 JPEG compression, and a shortcut hiding in the file size.
+  (a) Re-encode one image in memory (io.BytesIO) at JPEG quality 95,
+      75, 50, 25 and 10. For each, report the file size and the PSNR
+      against the original (implement PSNR yourself) and show a zoomed
+      crop of the worst and best quality.
+  (b) MILK10k images are already JPEG. What does this imply for a
+      model (artefacts, double compression, resizing after
+      compression)?
+  (c) Shortcut check: use os.stat to get the file size of EVERY image
+      (no decoding needed). Compare the distribution of file sizes of
+      Benign vs Malignant images (boxplot) and compute the ROC-AUC of
+      "file size" as a malignancy score, separately for dermoscopic and
+      clinical images. Is there a shortcut? Which acquisition factors
+      could explain it?
+
+
+---------------------------------------------------------------------
+A3. SESSION 3 - Splits, imbalance, leakage, augmentation, datasets
+---------------------------------------------------------------------
+
+A3.1 Measure the leak (do not only count it).
+  Counting leaked lesions is not enough: measure what a leak does to a
+  metric. Train a scikit-learn RandomForestClassifier
+  (min_samples_leaf=1, so it can memorise) on METADATA ONLY (age, sex,
+  anatom_site_general, image_type; use a Pipeline so that any
+  imputation/encoding is fitted on train only) to predict diagnosis_1.
+  Evaluate balanced accuracy on the test part of
+    (a) a naive image-level split (stratified on diagnosis_1)
+    (b) a grouped split by lesion_id (StratifiedGroupKFold)
+  Repeat with 5 seeds and report mean +- std for both.
+    (c) Then compute the POTENTIAL of the leak with a "sibling oracle":
+        predict each test image with the label of the lesion's OTHER
+        image if that image is in train (otherwise the majority class of
+        train). Report its balanced accuracy and the % of test images
+        whose sibling is in train, for both splits.
+    (d) Conclude in 4-5 sentences. Did the leak inflate the random
+        forest's metric? If not, why not (what do the two images of a
+        lesion share, and how strong is that information)? What does the
+        oracle tell you about a model that CAN recognise a lesion (e.g. a
+        CNN looking at the two views or at near-duplicate photos)? Why is
+        "I did not measure any inflation" not a valid reason to skip the
+        grouped split?
+
+A3.2 A reusable three-way split.
+  Write split_lesions(lesions, val_size, test_size, seed) that uses
+  StratifiedGroupKFold at LESION level (using your table from A1.3)
+  and returns three lists of lesion_id. Then write a property test that
+  runs it with 10 different seeds and checks:
+    - no overlap between any pair of splits
+    - split sizes within +-1 percentage point of the requested sizes
+    - same seed -> identical output (reproducibility)
+  Report, over the 10 seeds, in how many cases each rare class
+  (MAL_OTH, DF, INF, VASC, BEN_OTH) is present in val AND in test.
+  What does that tell you about evaluating the rarest class?
+
+A3.3 Why StratifiedGroupKFold?
+  Compare three 5-fold strategies on the lesion table:
+    (i)   GroupKFold             (groups, no stratification)
+    (ii)  StratifiedKFold        (stratification, no groups; run on the
+                                  IMAGE table)
+    (iii) StratifiedGroupKFold   (both)
+  For each report: number of leaked lesions across folds, the largest
+  spread (max - min across the 5 folds, in percentage points) of any
+  class proportion in the validation folds, and the number of folds
+  in which MAL_OTH is absent from the validation fold. Present a table
+  and conclude in 3 lines which strategy you would use and why.
+
+A3.4 Metrics and the cost of errors.
+  Using your test split (lesion level, diagnosis_1 with 3 classes):
+    (a) evaluate three dummy predictors (always-Malignant,
+        stratified-random, uniform-random), using sklearn.dummy.DummyClassifier,
+        with accuracy, balanced accuracy and macro-F1, and show the confusion
+        matrix of the stratified-random one
+    (b) define an explicit cost matrix (rows = truth, columns =
+        prediction; e.g. missing a Malignant costs 50, unnecessary
+        work-up of a Benign costs 1, Indeterminate errors cost 5, any
+        correct prediction 0) and compute the expected cost per lesion
+        of the three dummies AND of always-Benign
+    (c) which constant prediction is optimal under your costs, and does
+        the ranking by accuracy agree with the ranking by cost?
+
+A3.5 Is this augmentation label-safe? A quantitative audit.
+    (a) Colour safety: measure the difference between Benign and
+        Malignant in the mean HSV hue (degrees, use a circular mean)
+        and mean brightness (V) of lesion pixels over 100 images per
+        group. Compare with the change induced by ColorJitter hue in
+        {0.02, 0.05, 0.1, 0.5} (hue*360 degrees) and brightness in
+        {0.1, 0.3, 0.6}. Which parameters change colour MORE than the
+        class gap itself?
+    (b) In 4-5 sentences: which augmentations are safe, which are
+        risky, and who must approve them?
+
+A3.6 A lesion-level Dataset.
+  Write LesionDataset(lesion_table, img_dir, label_col, transform,
+  views=("derm", "clinical")) subclassing torch.utils.data.Dataset. Each
+  item is ONE lesion and returns a dict with one tensor per requested
+  view, the integer label and the lesion_id. Requirements: clear error
+  if an image is missing; the transform is applied independently to each
+  view; works with DataLoader(batch_size=8).
+    (a) test: one batch has shapes (8, 3, H, W) per view, and the
+        lesion_ids returned match the label table
+    (b) iterate one epoch over 800 lesions and check the class counts
+        seen equal the class counts of the subset
+    (c) write aggregate_predictions(image_probs, image_table) that turns
+        image-level class probabilities into ONE prediction per lesion
+        (average of the two views) and test it with synthetic
+        probabilities
+    (d) in 3 sentences: what is the correct unit of evaluation for this
+        project, and what goes wrong if you evaluate per image?
+
+=====================================================================
+PART B - COURSE PROJECT, MILESTONE 1: DATA PIPELINE
+=====================================================================
+Task    : classify diagnosis_1 (Benign / Malignant / Indeterminate).
+          Stretch: the 11-class scheme.
+Code    : your own. There is no required file or function name. What IS
+          required is that the structure makes sense, is explained in
+          your README, and that you can justify it when asked.
+Requires: the FULL MILK10k images.
+Start   : from YOUR Session 2 homework code (metadata analysis,
+          preprocessing functions, loader, visualizer). Milestone 1 is
+          the evolution of that code into a leak-free, reproducible
+          pipeline. Do not rewrite what already works: refactor it.
+
+---------------------------------------------------------------------
+B0. Repository structure and README  (do this FIRST)
+---------------------------------------------------------------------
+  Before writing pipeline code, create the repo skeleton and a
+  README.md at the repo root that is kept up to date as you work. It
+  must contain:
+    1. What the project is: the task (what is predicted and from
+       which inputs), the dataset (source, size, license and
+       attribution), and the goal of Milestone 1.
+    2. How to set it up and run it: Python version, how to install
+       dependencies (requirements.txt or environment.yml), where to
+       put the data and how to point the code to it, and the exact
+       commands to reproduce the splits, figures and tests.
+    3. Repository structure: a folder tree with ONE LINE per file or
+       folder saying what it is for, and a short paragraph explaining
+       WHY you organised it this way (e.g. where reusable code lives
+       versus exploration notebooks versus generated outputs).
+    4. Data handling rules: what is committed and what is not (raw
+       images are not), where generated files go, the seed used and
+       the date the splits were created.
+    5. Key decisions and results so far (short): label strategy,
+       split design, preprocessing, imbalance handling. Link to the
+       report for details.
+  Expect to be asked to justify your structure.
+  Good practice that will be looked at: reusable logic in importable
+  modules (not copy-pasted between notebooks), no hard-coded paths,
+  one place for configuration (paths, seed, image size), functions
+  with docstrings, generated files kept separate from source code.
+
+---------------------------------------------------------------------
+B1. Full-dataset integrity check
+---------------------------------------------------------------------
+
+  - Point your code to the full image set (config variable or
+    environment variable, documented in the README).
+  - Confirm that ALL 10,480 rows resolve to an existing image file.
+    List any that do not. Change your loader so that a missing file
+    raises an error (fail loudly) instead of being skipped, unless an
+    explicit option allows it.
+  - Run Image.verify() on every image (not just a sample). Record the
+    number of unreadable files, and the min/median/max width and
+    height. Save a small table (image_size_summary.csv).
+
+---------------------------------------------------------------------
+B2. Label-centred EDA (build on your Session 2 analysis)
+---------------------------------------------------------------------
+  Do NOT redo the metadata and colour analyses of Session 2: reuse
+  their figures and findings. Add what Milestone 1 needs and save the
+  figures to a figures/ folder:
+  1. Class distribution for diagnosis_1 AND the 11-class scheme
+     (log-scale version for the 11 classes) and the mapping between
+     them (see A1.1c).
+  2. A table "Session 2 finding -> still true on the full dataset? ->
+     consequence for the pipeline" with at least 4 rows (e.g. a colour
+     or metadata pattern you found, and whether it could be a shortcut
+     that must not be used as a model input).
+  3. A 3x4 gallery: one example per class, clearly labelled (use your
+     Session 2 visualizer).
+  Written analysis (200-300 words, in the report or as comments):
+  why MILK10k does not reflect real-world prevalence (biopsy
+  enrichment), and what this means for how you interpret the accuracy
+  of your final model.
+
+---------------------------------------------------------------------
+B3. Decide your label strategy
+---------------------------------------------------------------------
+  - For the primary target, decide how to treat "Indeterminate".
+    Options: keep as a 3rd class, merge, or drop. Justify with the
+    counts and with clinical consequences.
+  - For the 11-class stretch goal, decide what to do with classes of
+    fewer than ~50 lesions (INF, VASC, BEN_OTH, MAL_OTH, DF): keep,
+    merge into an "other" group, or handle with weights. Explain the
+    trade-off in a short paragraph.
+  - Write the final label mapping as a dict and save it as
+    label_map.json. Every later milestone will load it.
+
+---------------------------------------------------------------------
+B4. Data-quality report
+---------------------------------------------------------------------
+  Extend your Session 2 metadata audit (do not repeat its tables) with
+  code that produces a saved report file (e.g. CSV/Markdown). It must
+  include:
+  - the handling decision for each column with missing values
+    (impute / "unknown" / leave NaN / drop), in one line each,
+  - the label-consistency checks (exactly 2 images per lesion, 
+    one of each image_type),
+  - a check for suspicious shortcuts: cross-tab of image_manipulation
+    and of image_type against diagnosis_1, and  with your conclusion,
+  - a list of columns you will NOT use as model inputs because they
+    leak the label (e.g. diagnosis_confirm_type, diagnosis_2-4).
+
+---------------------------------------------------------------------
+B5. Splits
+---------------------------------------------------------------------
+  - Use (and clean up) your split_lesions() to create
+    train / val / test, grouped by lesion_id and stratified on the
+    11-class label, with a fixed seed. Splitting happens at LESION
+    level; images are assigned afterwards.
+  - Verify, in code, and print the results:
+      * zero lesion_id overlap between every pair of splits
+      * each lesion has exactly 2 images in its split
+      * class proportions per split (table) and the maximum deviation
+        from the global proportions
+      * diagnosis_1 proportions per split
+  - Save the three split files (train / val / test CSV) and write the
+    seed and the date in the README.
+
+---------------------------------------------------------------------
+B6. Preprocessing decisions
+---------------------------------------------------------------------
+  Ddecide, with evidence:
+  - the input resolution (e.g. 224 or 256), justified with the
+    image-size table from B1 (what fraction of images is larger?);
+  - how to combine the 2 images per lesion (dermoscopic + clinical):
+    (a) independent samples with the lesion label, (b) one image type
+    only, (c) both views per lesion. Implement the option
+    you choose, describe the other two, and state the leakage risk if
+    you evaluate per image instead of per lesion.
+
+---------------------------------------------------------------------
+B7. Augmentation pipeline
+---------------------------------------------------------------------
+  - Write train_transform and eval_transform in an importable module
+    (not inside a notebook) so that later milestones can reuse them.
+  - eval_transform must be deterministic. Prove it by applying it
+    twice to the same image and asserting the tensors are equal.
+  - Save a figure with 1 original + 7 augmented versions for one
+    image from each of 3 classes (including a rare one).
+  - Write a table: each augmentation, its parameters, and a one-line
+    medical justification (why it does not change the label).
+
+---------------------------------------------------------------------
+B8. Upgrade your Session 2 loader into the project Dataset/DataLoader
+---------------------------------------------------------------------
+  Take the loader you wrote in Session 2 and upgrade it. Required
+  upgrades:
+  - it reads a split CSV and the label map (integer labels), and
+    returns (image_tensor, label, isic_id); returning the id helps error
+    analysis;
+  - torchvision transforms instead of manual preprocessing; augmentation
+    ONLY in train;
+  - three DataLoaders: train (shuffle, augment), val and test
+    (no shuffle, eval_transform). Choose batch size and num_workers. 
+    Set seeds for reproducibility (torch, numpy, random).
+  - imbalance handling: implement BOTH (i) class-weighted loss
+    weights computed from the train split and (ii) a
+    WeightedRandomSampler for train. Store the class weights in
+    class_weights.json.
+  - fail loudly on missing files (see B1);
+  - sanity checks to print: batch shape, dtype, min/max of a batch,
+    label histogram of 20 train batches, time to load one epoch of the train set;
+  - visual check: use your Session 2 visualizer to plot a batch of 16
+    images after the transforms with the labels as titles.
+
+---------------------------------------------------------------------
+B9. Milestone 1 report (max 2 pages)
+---------------------------------------------------------------------
+  Include: label strategy and its justification, split design and
+  verification results, the imbalance ratio on TRAIN, quality issues
+  found and how you handled them, preprocessing choices (resolution,
+  normalization stats, augmentations with justification), and one
+  paragraph on what could still go wrong (residual leakage risks,
+  biases in the data, what a clinician should know about the limits
+  of your model).
+ 
+=====================================================================
+WHAT TO SUBMIT
+=====================================================================
+Everything goes in your own GitHub repository. Send the repo URL AND the file
+SUBMISSION.md described below.
+
+PART A - notebook in PDF
+  1. Create the notebook:  homework_part_a.ipynb
+     - One section per exercise (A1.1, A1.2, ...), each with your code
+       and your written answer in a Markdown cell.
+     - It must run top to bottom: "Restart & Run All" with no errors.
+       Keep the outputs (plots, tables) saved in the notebook.
+     - Use relative paths (data folder configured in one place) so it
+       runs on any machine: no absolute paths such as
+       C:/Users/... The notebook must only depend on code in your own
+       repo and on packages listed in requirements.txt.
+  2. Export it to PDF:     homework_part_a.pdf
+     - VS Code / Jupyter: "Export" > PDF (or export to HTML and use
+       "Print to PDF" in the browser if LaTeX is not installed).
+     - Check the PDF: all plots visible, nothing cut off at the page
+       edge, exercises in order.
+  3. Commit BOTH the .ipynb and the .pdf to the repo and push.
+     The notebook must be in the repo: the PDF alone is not accepted.
+
+PART B - project files in the repo
+  Organise the repo the way YOU think makes sense. File and
+  folder names are your choice, but the repo must contain these
+  deliverables, wherever you decide to put them:
+    - README.md at the repo root (B0)
+    - requirements.txt or environment.yml
+    - the source code: data loading, EDA, quality check, splitting,
+      transforms, Dataset/DataLoader
+    - the three split files (train / val / test)
+    - the label mapping, normalization statistics and class weights
+      (any readable format, e.g. JSON)
+    - the figures (EDA and augmentation)
+  - Do NOT commit the raw images (too large): add the image folder to
+    .gitignore. The split CSVs are small and MUST be committed.
+  - Commit early and often with meaningful messages: the commit
+    history is part of the evidence that the work is yours.
+
+SUBMISSION.md (repo root) - the link list
+  Create SUBMISSION.md containing:
+    - your name and the repo URL 
+    
+  Oral check: you may be asked to explain and justify your repo
+  structure and any function in it. Code you cannot explain is graded
+  as if it were not yours.
+
+=====================================================================
