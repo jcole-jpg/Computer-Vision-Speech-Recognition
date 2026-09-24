@@ -8,8 +8,16 @@ data/processed/*
 *.tar.gz
 *.crdownload
 *.part
-*.csv
 *.parquet
+
+# Generated CSV/JSON artefacts are ignored by default...
+data/processed/*.csv
+!data/processed/.gitkeep
+
+# ...but the pipeline outputs (splits, label map, weights, summaries) are small
+# and MUST be committed - they are the evidence the pipeline is reproducible.
+!artifacts/
+!artifacts/**
 
 # --- Python ---
 __pycache__/
@@ -33,3 +41,10 @@ Thumbs.db
 # --- Secrets ---
 .env
 *.pem
+
+# --- Submission bundle (derived) ---
+# Finished/ and the zip are assembled from files already committed elsewhere in
+# this repo by scripts/build_submission_folder.py. Committing them would duplicate
+# ~15 MB. Regenerate with: python scripts/build_submission_folder.py
+Finished/
+*_CVSR_Sessions_*.zip

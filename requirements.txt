@@ -5,16 +5,22 @@ matplotlib>=3.8
 seaborn>=0.13
 pillow>=10.0
 scikit-learn>=1.4
+scipy>=1.11
+
+# Deep-learning stack (Dataset/DataLoader, transforms, augmentation)
+torch>=2.2
+torchvision>=0.17
 
 # Notebooks
 jupyter>=1.0
 ipykernel>=6.29
 tqdm>=4.66
 
-# Notebook execution (headless)
+# Notebook execution (headless) + PDF export
 nbformat>=5.10
 nbclient>=0.10
 nbconvert>=7.16
+pymupdf>=1.24
 
 # Tests
 pytest>=8.0

@@ -15,10 +15,13 @@ from pathlib import Path
 
 import pandas as pd
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DATA_DIR = PROJECT_ROOT / "data" / "raw" / "milk10k"
-IMAGE_DIR = DATA_DIR / "images"
-FIG_DIR = PROJECT_ROOT / "reports" / "figures"
+# Paths come from the single config module - never re-derive them here (B0).
+from .config import (  # noqa: F401  (re-exported for backwards compatibility)
+    DATA_DIR,
+    FIG_DIR,
+    IMAGE_DIR,
+    PROJECT_ROOT,
+)
 
 # 11 top-level MILK10k classes (column order of training_gt.csv)
 CLASS_NAMES: dict[str, str] = {
@@ -133,3 +136,78 @@ def available_subset(df: pd.DataFrame, image_dir: Path | None = None,
         df = df.assign(**{path_col: df["isic_id"].map(lambda i: image_dir / f"{i}.jpg")})
     exists = df[path_col].map(lambda p: Path(p).is_file())
     return df[exists].reset_index(drop=True)
+
+
+def build_lesion_table(images: pd.DataFrame | None = None) -> pd.DataFrame:
+    """One row per lesion, in the exact schema the project pipeline splits on (A1.3).
+
+    Columns: ``lesion_id, derm_id, clinical_id, diagnosis_1, dx, age, sex, site``
+    where ``dx`` is the 11-class label from ``training_gt.csv`` and ``derm_id`` /
+    ``clinical_id`` are the ``isic_id`` of the dermoscopic / clinical view.
+
+    Built with pivot + groupby only - no Python loop over rows - because the
+    per-lesion fields were verified identical across a lesion's two images
+    (A1.1e), so ``first`` is a safe aggregation.
+    """
+    df = images if images is not None else load_images_table()
+
+    # Wide: one column per image_type holding that view's isic_id.
+    ids = (
+        df.pivot_table(index="lesion_id", columns="image_type",
+                       values="isic_id", aggfunc="first")
+        .rename(columns={"dermoscopic": "derm_id", "clinical": "clinical_id"})
+    )
+    ids.columns.name = None
+
+    # Per-lesion fields: identical across the two images, so take the first.
+    fields = df.groupby("lesion_id").agg(
+        diagnosis_1=("diagnosis_1", "first"),
+        dx=("label", "first"),
+        age=("age_approx", "first"),
+        sex=("sex", "first"),
+        site=("anatom_site_general", "first"),
+    )
+
+    out = ids.join(fields).reset_index()
+    return out[["lesion_id", "derm_id", "clinical_id",
+                "diagnosis_1", "dx", "age", "sex", "site"]]
+
+
+def assert_lesion_table(lesions: pd.DataFrame, n_expected: int = 5_240) -> None:
+    """The A1.3 acceptance checks, as asserts (raises with a useful message)."""
+    assert len(lesions) == n_expected, f"expected {n_expected} lesions, got {len(lesions)}"
+    assert lesions["lesion_id"].is_unique, "duplicate lesion_id"
+    for col in ("derm_id", "clinical_id"):
+        missing = lesions[col].isna().sum()
+        assert missing == 0, f"{missing} lesions are missing {col}"
+
+
+#: ``site`` (training_input.csv) -> the vocabulary used by ``anatom_site_general``.
+SITE_ALIASES: dict[str, str] = {
+    "trunk": "trunk",
+    "head_neck_face": "head/neck",
+    "upper_extremity": "upper extremity",
+    "lower_extremity": "lower extremity",
+    "hand": "upper extremity",
+    "foot": "lower extremity",
+    "genital": "oral/genital",
+}
+
+
+def resolve_site(images: pd.DataFrame) -> pd.Series:
+    """Recover the true anatomical site, filling ``anatom_site_general`` from ``site``.
+
+    ``anatom_site_general`` has **no 'trunk' category**: trunk lesions are recorded
+    as NaN there, and the real value lives in the ``site`` column of
+    ``training_input.csv``. 3,850 of the 3,912 "missing" images are trunk, and only
+    62 are genuinely unknown.
+
+    Imputing the raw column with "unknown" would therefore collapse the single most
+    common anatomical site into a meaningless bucket and throw away real signal.
+    Use this instead; it leaves only the 62 true unknowns.
+    """
+    filled = images["anatom_site_general"].copy()
+    if "site" not in images.columns:
+        return filled.fillna("unknown")
+    recovered = images["site"].map(SITE_ALIASES)
+    return filled.fillna(recovered).fillna("unknown")
