@@ -70,6 +70,7 @@ class MILK10kLoader:
         classes: Sequence[str] | None = None,
         image_dir: Path | None = None,
         drop_last: bool = False,
+        strict: bool = False,
     ) -> None:
         if batch_size < 1:
             raise ValueError("batch_size must be >= 1")
@@ -83,11 +84,23 @@ class MILK10kLoader:
         self.label_col = label_col
         self._rng = np.random.default_rng(seed)
 
-        # only draw from images that are really on disk
+        # Images that are not on disk. By default they are dropped (the Session 2
+        # behaviour, useful when working from a partial download); with
+        # ``strict=True`` they raise instead, which is what the project pipeline
+        # uses - silently skipping rows shrinks the dataset and shifts the class
+        # balance without ever warning you (B1).
+        self.strict = strict
         n_before = len(df)
         df = df.dropna(subset=[label_col])
-        df = available_subset(df, image_dir or IMAGE_DIR)
-        self.n_unavailable = n_before - len(df)
+        available = available_subset(df, image_dir or IMAGE_DIR)
+        self.n_unavailable = n_before - len(available)
+        if strict and self.n_unavailable:
+            missing = sorted(set(df["isic_id"]) - set(available["isic_id"]))[:10]
+            raise FileNotFoundError(
+                f"{self.n_unavailable} of {n_before} rows have no image on disk "
+                f"(first few: {missing}). Pass strict=False to skip them instead."
+            )
+        df = available
         if df.empty:
             raise ValueError("no rows with both a label and an image file on disk")
 
